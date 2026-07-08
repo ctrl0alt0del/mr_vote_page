@@ -1,0 +1,74 @@
+# Marvel Rivals Hero Vote
+
+A React SPA for ranked Marvel Rivals hero voting across dynamic categories. The frontend is static and ready for GitHub Pages; ordered ballots persist in Supabase Postgres.
+
+## Stack
+
+- React + Vite
+- Supabase JS client
+- Supabase Postgres, RLS, public category CRUD, and ranked ballots
+- GitHub Pages deployment with GitHub Actions
+
+## Local Setup
+
+1. Create a free Supabase project.
+2. Open the Supabase SQL editor and run `supabase/schema.sql`.
+3. Copy `.env.example` to `.env`.
+4. Fill in `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`.
+5. Run the app:
+
+```bash
+npm install
+npm run dev
+```
+
+## GitHub Pages
+
+1. Push this project to a GitHub repository.
+2. In GitHub, open Settings > Secrets and variables > Actions.
+3. Add these repository secrets:
+
+```text
+VITE_SUPABASE_URL
+VITE_SUPABASE_ANON_KEY
+```
+
+4. Open Settings > Pages and set Source to GitHub Actions.
+5. Push to `main`, or run the workflow manually.
+
+The Vite config uses `base: './'`, so the built app works under a GitHub Pages repository path.
+
+## Supabase Notes
+
+When defining a category, choose which heroes can participate. Presets cover all heroes and each role, and the icon grid allows manual refinement.
+
+Before voting, the user chooses one category. The app opens a draggable ordered list of the eligible heroes and stores the submitted order through `submit_ranked_ballot(category_id, voter_key, hero_ids)`.
+
+The app hides results during voting. For analysis, query `category_rankings`, which uses Dowdall scoring from stored ordered ballots: first place gets `1`, second gets `1/2`, third gets `1/3`, and so on.
+
+Categories are editable from the browser. The included RLS policies intentionally allow public category create, update, and delete so you can manage categories from the SPA. Add Supabase Auth and stricter policies before sharing the manager controls with untrusted users.
+
+## Updating An Existing Project
+
+If you already ran the earlier schemas, push the pending migrations:
+
+```bash
+npx supabase db push
+```
+
+The latest migration is `supabase/migrations/20260708203000_ranked_ballots.sql`.
+
+## Analysis
+
+Run `supabase/analysis.sql` in the Supabase SQL editor to get:
+
+- ranked heroes by category
+- submitted ballots by category
+- highest scoring heroes by category
+- ballot submissions over time
+
+## Roster
+
+`supabase/schema.sql` is seeded with hero IDs, roles, and portrait URLs extracted from the official Marvel Rivals heroes page on 2026-07-08. Re-run the seed section after editing it if the roster changes.
+
+This fan poll is not affiliated with Marvel, NetEase, or Marvel Rivals.

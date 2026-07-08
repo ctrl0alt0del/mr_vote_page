@@ -1,0 +1,106 @@
+:root {
+  --bg: #08090d;
+  --black: #08090d;
+  --blue: #1a5bff;
+  --border: rgba(255, 255, 255, 0.18);
+  --border-strong: rgba(255, 222, 77, 0.72);
+  --cyan: #43e7ff;
+  --danger: #ec3148;
+  --gold: #ffde4d;
+  --ink: #11131a;
+  --ink-2: #171b26;
+  --panel: rgba(17, 19, 26, 0.94);
+  --panel-2: rgba(27, 31, 42, 0.92);
+  --paper: #f7f1dc;
+  --role: var(--danger);
+  --shadow: 0 18px 42px rgba(0, 0, 0, 0.42);
+  --text-muted: #b7c0ce;
+  --text-strong: #fff7dc;
+  color: var(--text-strong);
+  font-family: Impact, Haettenschweiler, 'Arial Narrow Bold', 'Segoe UI', sans-serif;
+  font-synthesis: none;
+  line-height: 1.35;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+  scrollbar-color: rgba(255, 222, 77, 0.72) rgba(8, 9, 13, 0.72);
+  scrollbar-width: thin;
+}
+
+*::-webkit-scrollbar {
+  height: 10px;
+  width: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: rgba(8, 9, 13, 0.74);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+*::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, var(--gold), var(--danger));
+  border: 2px solid rgba(8, 9, 13, 0.9);
+  border-radius: 0;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, var(--paper), var(--gold));
+}
+
+html {
+  background: var(--bg);
+}
+
+body {
+  background:
+    linear-gradient(115deg, rgba(236, 49, 72, 0.22) 0 16%, transparent 16% 100%),
+    linear-gradient(295deg, rgba(255, 222, 77, 0.16) 0 14%, transparent 14% 100%),
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.035) 0 1px, transparent 1px 18px),
+    radial-gradient(circle, rgba(255, 255, 255, 0.06) 1px, transparent 1.5px),
+    linear-gradient(135deg, #08090d 0%, #131722 48%, #241018 100%);
+  background-size: auto, auto, auto, 12px 12px, auto;
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+button {
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease,
+    background 160ms ease,
+    color 160ms ease;
+}
+
+button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid rgba(255, 222, 77, 0.62);
+  outline-offset: 2px;
+}
+
+code {
+  background: rgba(255, 222, 77, 0.12);
+  border: 1px solid rgba(255, 222, 77, 0.38);
+  border-radius: 4px;
+  color: var(--gold);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9em;
+  padding: 2px 5px;
+}
