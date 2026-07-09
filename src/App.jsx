@@ -832,6 +832,10 @@ function setDrawerOpen(drawerOpen, setState) {
   setState((data) => ({ ...data, drawerOpen }));
 }
 
+function setResultView(resultView, setState) {
+  setState((data) => ({ ...data, resultView }));
+}
+
 function closeResults(setState) {
   setState((data) => ({
     ...data,
