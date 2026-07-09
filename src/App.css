@@ -803,9 +803,17 @@
     grid-template-columns: 1fr;
   }
 
-  .drawer-fab,
-  .drawer-layer {
-    display: none;
+  .drawer-fab {
+    width: 100%;
+  }
+
+  .category-drawer {
+    height: min(780px, calc(100dvh - 32px));
+    left: 16px;
+    max-width: none;
+    right: 16px;
+    top: 16px;
+    width: auto;
   }
 
   .ranking-item {
@@ -829,6 +837,30 @@
 
   .hero-header h1 {
     font-size: 2.2rem;
+  }
+
+  .category-drawer {
+    gap: 10px;
+    height: calc(100dvh - 16px);
+    left: 8px;
+    padding: 12px;
+    right: 8px;
+    top: 8px;
+  }
+
+  .category-drawer h2 {
+    font-size: 1.28rem;
+  }
+
+  .drawer-header button {
+    min-height: 44px;
+    width: 46px;
+  }
+
+  .hero-icon-grid {
+    grid-auto-rows: 44px;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    max-height: 150px;
   }
 
   .hero-grid {

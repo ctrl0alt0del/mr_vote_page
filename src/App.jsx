@@ -224,7 +224,7 @@ function PollArea({ poll }) {
     return <ResultsPage poll={poll} />;
   return (
     <>
-      <DesktopManageButton poll={poll} />
+      <ManageButton poll={poll} />
       <section className="poll-layout">
         <VotingStage poll={poll} />
       </section>
@@ -234,7 +234,7 @@ function PollArea({ poll }) {
   );
 }
 
-function DesktopManageButton({ poll }) {
+function ManageButton({ poll }) {
   return (
     <button className="drawer-fab" onClick={poll.openDrawer} type="button">
       <SlidersHorizontal size={18} />
