@@ -530,9 +530,20 @@
   width: 860px;
 }
 
+.results-page {
+  background: var(--panel);
+  border: 2px solid var(--border);
+  border-top: 6px solid var(--gold);
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+}
+
 .results-header {
   align-items: center;
   display: flex;
+  gap: 14px;
   justify-content: space-between;
 }
 
@@ -553,12 +564,22 @@
   width: 42px;
 }
 
+.results-actions {
+  display: flex;
+  gap: 8px;
+}
+
 .results-list {
   display: grid;
   gap: 8px;
   min-height: 0;
   overflow: auto;
   padding-right: 4px;
+}
+
+.results-page .results-list {
+  overflow: visible;
+  padding-right: 0;
 }
 
 .result-row {

@@ -22,6 +22,7 @@ import {
   ChevronDown,
   ChevronUp,
   GripVertical,
+  Maximize2,
   Pencil,
   Plus,
   Save,
@@ -71,6 +72,7 @@ function buildActions(state, setState) {
     moveHero: (heroId, offset) => moveRankedHero(heroId, offset, setState), openDrawer: () => setDrawerOpen(true, setState),
     openResults: (category) => loadResults(category, setState), refresh: () => loadSetup(setState),
     reorderHero: (activeId, overId) => reorderRankedHero(activeId, overId, setState),
+    showResultModal: () => setResultView("modal", setState), showResultPage: () => setResultView("page", setState),
     startCategory: (category) => startCategoryRanking(category, state.heroes, setState),
     submitRanking: () => saveRanking(state, setState), updateCategory: (id, draft) => saveCategoryEdit(id, draft, setState),
   };
@@ -80,7 +82,7 @@ function makeInitialState() {
   return {
     activeCategory: null, categories: [], categoryBusy: false, completedCategory: null,
     drawerOpen: false, error: "", heroes: [], rankingIds: [], resultCategory: null,
-    resultError: "", resultRankings: [], resultStatus: "idle",
+    resultError: "", resultRankings: [], resultStatus: "idle", resultView: "modal",
     status: hasSupabaseConfig ? "loading" : "setup",
     submitBusy: false,
   };
@@ -148,7 +150,7 @@ function setRankingDone(category, setState) {
 }
 
 async function loadResults(category, setState) {
-  setState((data) => ({ ...data, resultCategory: category, resultError: "", resultRankings: [], resultStatus: "loading" }));
+  setState((data) => ({ ...data, resultCategory: category, resultError: "", resultRankings: [], resultStatus: "loading", resultView: "modal" }));
   try {
     setResultsLoaded(category, await fetchCategoryRankings(category.id), setState);
   } catch (error) {
@@ -218,6 +220,8 @@ function SetupNotice() {
 
 function PollArea({ poll }) {
   if (poll.status === "setup") return <EmptyState />;
+  if (poll.resultCategory && poll.resultView === "page")
+    return <ResultsPage poll={poll} />;
   return (
     <>
       <DesktopManageButton poll={poll} />
@@ -225,7 +229,7 @@ function PollArea({ poll }) {
         <VotingStage poll={poll} />
       </section>
       {poll.drawerOpen && <CategoryDrawer poll={poll} />}
-      {poll.resultCategory && <ResultsModal poll={poll} />}
+      {poll.resultCategory && poll.resultView === "modal" && <ResultsModal poll={poll} />}
     </>
   );
 }
@@ -551,13 +555,26 @@ function ResultsModal({ poll }) {
   );
 }
 
+function ResultsPage({ poll }) {
+  return <section className="results-page"><ResultsHeader fullPage poll={poll} /><ResultsBody poll={poll} /></section>;
+}
+
 function ResultsHeader({ poll }) {
   return (
     <header className="results-header">
       <div><p className="eyebrow">Results</p><h2>{poll.resultCategory.name}</h2></div>
-      <button aria-label="Close results" onClick={poll.closeResults} type="button"><X size={20} /></button>
+      <ResultsHeaderActions poll={poll} />
     </header>
   );
+}
+
+function ResultsHeaderActions({ poll }) {
+  if (poll.resultView === "page") return <div className="results-actions"><button aria-label="Back to modal" onClick={poll.showResultModal} type="button"><ArrowLeft size={20} /></button><CloseResultsButton poll={poll} /></div>;
+  return <div className="results-actions"><button aria-label="Open full page results" onClick={poll.showResultPage} type="button"><Maximize2 size={18} /></button><CloseResultsButton poll={poll} /></div>;
+}
+
+function CloseResultsButton({ poll }) {
+  return <button aria-label="Close results" onClick={poll.closeResults} type="button"><X size={20} /></button>;
 }
 
 function ResultsBody({ poll }) {
@@ -822,6 +839,7 @@ function closeResults(setState) {
     resultError: "",
     resultRankings: [],
     resultStatus: "idle",
+    resultView: "modal",
   }));
 }
 
