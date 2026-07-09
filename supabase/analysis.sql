@@ -1,4 +1,4 @@
--- Ranked hero list per category using Dowdall points: 1 / rank position.
+-- Ranked hero list per category using average Dowdall score.
 select category_name, rank, name, role, points, average_rank, ballots
 from public.category_rankings
 order by category_name asc, rank asc, name asc;
@@ -10,7 +10,7 @@ left join public.ranked_ballots rb on rb.category_id = c.id
 group by c.id, c.name
 order by c.name;
 
--- Highest Dowdall scoring heroes by category.
+-- Highest average Dowdall scoring heroes by category.
 select category_name, name, role, points, average_rank, ballots
 from public.category_rankings
 where ballots > 0

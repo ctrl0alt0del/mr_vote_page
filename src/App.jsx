@@ -65,39 +65,22 @@ function usePoll() {
 
 function buildActions(state, setState) {
   return {
-    ...state,
-    cancelVote: () => showCategoryStart(setState),
-    createCategory: (draft) => saveNewCategory(draft, setState),
-    closeDrawer: () => setDrawerOpen(false, setState),
-    closeResults: () => closeResults(setState),
-    deleteCategory: (id) => removeCategory(id, setState),
-    moveHero: (heroId, offset) => moveRankedHero(heroId, offset, setState),
-    openDrawer: () => setDrawerOpen(true, setState),
-    openResults: (category) => loadResults(category, setState),
-    refresh: () => loadSetup(setState),
-    reorderHero: (activeId, overId) =>
-      reorderRankedHero(activeId, overId, setState),
-    startCategory: (category) =>
-      startCategoryRanking(category, state.heroes, setState),
-    submitRanking: () => saveRanking(state, setState),
-    updateCategory: (id, draft) => saveCategoryEdit(id, draft, setState),
+    ...state, cancelVote: () => showCategoryStart(setState),
+    closeDrawer: () => setDrawerOpen(false, setState), closeResults: () => closeResults(setState),
+    createCategory: (draft) => saveNewCategory(draft, setState), deleteCategory: (id) => removeCategory(id, setState),
+    moveHero: (heroId, offset) => moveRankedHero(heroId, offset, setState), openDrawer: () => setDrawerOpen(true, setState),
+    openResults: (category) => loadResults(category, setState), refresh: () => loadSetup(setState),
+    reorderHero: (activeId, overId) => reorderRankedHero(activeId, overId, setState),
+    startCategory: (category) => startCategoryRanking(category, state.heroes, setState),
+    submitRanking: () => saveRanking(state, setState), updateCategory: (id, draft) => saveCategoryEdit(id, draft, setState),
   };
 }
 
 function makeInitialState() {
   return {
-    activeCategory: null,
-    categories: [],
-    categoryBusy: false,
-    completedCategory: null,
-    drawerOpen: false,
-    error: "",
-    heroes: [],
-    rankingIds: [],
-    resultCategory: null,
-    resultError: "",
-    resultRankings: [],
-    resultStatus: "idle",
+    activeCategory: null, categories: [], categoryBusy: false, completedCategory: null,
+    drawerOpen: false, error: "", heroes: [], rankingIds: [], resultCategory: null,
+    resultError: "", resultRankings: [], resultStatus: "idle",
     status: hasSupabaseConfig ? "loading" : "setup",
     submitBusy: false,
   };
@@ -165,19 +148,9 @@ function setRankingDone(category, setState) {
 }
 
 async function loadResults(category, setState) {
-  setState((data) => ({
-    ...data,
-    resultCategory: category,
-    resultError: "",
-    resultRankings: [],
-    resultStatus: "loading",
-  }));
+  setState((data) => ({ ...data, resultCategory: category, resultError: "", resultRankings: [], resultStatus: "loading" }));
   try {
-    setResultsLoaded(
-      category,
-      await fetchCategoryRankings(category.id),
-      setState,
-    );
+    setResultsLoaded(category, await fetchCategoryRankings(category.id), setState);
   } catch (error) {
     setResultsError(error, setState);
   }
@@ -340,26 +313,9 @@ function RankingHeader({ category, total }) {
 function RankingList({ heroes, poll }) {
   const sensors = useRankingSensors();
   return (
-    <DndContext
-      collisionDetection={closestCenter}
-      onDragEnd={(event) => handleSortEnd(event, poll)}
-      sensors={sensors}
-    >
-      <SortableContext
-        items={heroes.map((hero) => hero.id)}
-        strategy={verticalListSortingStrategy}
-      >
-        <div className="ranking-list">
-          {heroes.map((hero, index) => (
-            <RankingItem
-              hero={hero}
-              index={index}
-              key={hero.id}
-              poll={poll}
-              total={heroes.length}
-            />
-          ))}
-        </div>
+    <DndContext collisionDetection={closestCenter} onDragEnd={(event) => handleSortEnd(event, poll)} sensors={sensors}>
+      <SortableContext items={heroes.map((hero) => hero.id)} strategy={verticalListSortingStrategy}>
+        <div className="ranking-list">{heroes.map((hero, index) => <RankingItem hero={hero} index={index} key={hero.id} poll={poll} total={heroes.length} />)}</div>
       </SortableContext>
     </DndContext>
   );
@@ -369,29 +325,20 @@ function RankingItem({ hero, index, poll, total }) {
   const sortable = useSortable({ id: hero.id });
   const dragging = sortable.isDragging ? " dragging" : "";
   return (
-    <article
-      className={`ranking-item ${roleClass(hero.role)}${dragging}`}
-      ref={sortable.setNodeRef}
-      style={sortableStyle(sortable)}
-    >
+    <article className={`ranking-item ${roleClass(hero.role)}${dragging}`} ref={sortable.setNodeRef} style={sortableStyle(sortable)}>
       <strong className="rank-number">{index + 1}</strong>
-      <button
-        aria-label={`Drag ${hero.name}`}
-        className="drag-handle"
-        type="button"
-        {...sortable.attributes}
-        {...sortable.listeners}
-      >
-        <GripVertical size={22} />
-      </button>
-      <HeroPortrait hero={hero} />
-      <div className="hero-copy">
-        <p>{hero.role}</p>
-        <h2>{hero.name}</h2>
-      </div>
+      <DragHandle hero={hero} sortable={sortable} /><HeroPortrait hero={hero} /><HeroCopy hero={hero} />
       <RankControls hero={hero} index={index} poll={poll} total={total} />
     </article>
   );
+}
+
+function DragHandle({ hero, sortable }) {
+  return <button aria-label={`Drag ${hero.name}`} className="drag-handle" type="button" {...sortable.attributes} {...sortable.listeners}><GripVertical size={22} /></button>;
+}
+
+function HeroCopy({ hero }) {
+  return <div className="hero-copy"><p>{hero.role}</p><h2>{hero.name}</h2></div>;
 }
 
 function useRankingSensors() {
@@ -421,66 +368,35 @@ function sortableStyle(sortable) {
 function RankControls({ hero, index, poll, total }) {
   return (
     <div className="rank-controls">
-      <button
-        aria-label={`Move ${hero.name} up`}
-        disabled={index === 0}
-        onClick={() => poll.moveHero(hero.id, -1)}
-        type="button"
-      >
-        <ChevronUp size={18} />
-      </button>
-      <button
-        aria-label={`Move ${hero.name} down`}
-        disabled={index === total - 1}
-        onClick={() => poll.moveHero(hero.id, 1)}
-        type="button"
-      >
-        <ChevronDown size={18} />
-      </button>
+      <MoveButton disabled={index === 0} hero={hero} icon={<ChevronUp size={18} />} label="up" offset={-1} poll={poll} />
+      <MoveButton disabled={index === total - 1} hero={hero} icon={<ChevronDown size={18} />} label="down" offset={1} poll={poll} />
     </div>
   );
+}
+
+function MoveButton({ disabled, hero, icon, label, offset, poll }) {
+  return <button aria-label={`Move ${hero.name} ${label}`} disabled={disabled} onClick={() => poll.moveHero(hero.id, offset)} type="button">{icon}</button>;
 }
 
 function RankingActions({ poll }) {
   return (
     <div className="ranking-actions">
-      <button
-        className="start-button"
-        disabled={poll.submitBusy}
-        onClick={poll.submitRanking}
-        type="button"
-      >
-        <Save size={18} />
-        <span>Submit Ranking</span>
-      </button>
-      <button
-        className="secondary-button"
-        disabled={poll.submitBusy}
-        onClick={poll.cancelVote}
-        type="button"
-      >
-        <ArrowLeft size={18} />
-        <span>Back</span>
-      </button>
+      <RankingAction className="start-button" disabled={poll.submitBusy} icon={<Save size={18} />} label="Submit Ranking" onClick={poll.submitRanking} />
+      <RankingAction className="secondary-button" disabled={poll.submitBusy} icon={<ArrowLeft size={18} />} label="Back" onClick={poll.cancelVote} />
     </div>
   );
+}
+
+function RankingAction({ className, disabled, icon, label, onClick }) {
+  return <button className={className} disabled={disabled} onClick={onClick} type="button">{icon}<span>{label}</span></button>;
 }
 
 function CategoryDrawer({ poll }) {
   const editor = useCategoryEditor(poll);
   return (
     <div className="drawer-layer">
-      <button
-        className="drawer-backdrop"
-        aria-label="Close category manager"
-        onClick={poll.closeDrawer}
-        type="button"
-      />
-      <aside className="category-drawer">
-        <DrawerHeader poll={poll} />
-        <CategoryForm editor={editor} poll={poll} />
-        <CategoryList editor={editor} poll={poll} />
-      </aside>
+      <button className="drawer-backdrop" aria-label="Close category manager" onClick={poll.closeDrawer} type="button" />
+      <aside className="category-drawer"><DrawerHeader poll={poll} /><CategoryForm editor={editor} poll={poll} /><CategoryList editor={editor} poll={poll} /></aside>
     </div>
   );
 }
@@ -496,38 +412,21 @@ function useCategoryEditor(poll) {
 
 function useEditorApi(draft, editingId, poll, setDraft, setEditingId) {
   return {
-    cancel: () => cancelCategoryEdit(setDraft, setEditingId),
-    draft,
-    edit: (category) => startCategoryEdit(category, setDraft, setEditingId),
-    editingId,
-    setDescription: (description) =>
-      setDraft((data) => ({ ...data, description })),
+    cancel: () => cancelCategoryEdit(setDraft, setEditingId), draft,
+    edit: (category) => startCategoryEdit(category, setDraft, setEditingId), editingId,
+    setDescription: (description) => setDraft((data) => ({ ...data, description })),
     setHeroIds: (heroIds) => setDraft((data) => ({ ...data, heroIds })),
     setName: (name) => setDraft((data) => ({ ...data, name })),
-    toggleHero: (heroId) =>
-      setDraft((data) => ({
-        ...data,
-        heroIds: toggleId(data.heroIds, heroId),
-      })),
-    submit: (event) =>
-      submitCategoryForm(event, poll, draft, editingId, setDraft, setEditingId),
+    toggleHero: (heroId) => setDraft((data) => ({ ...data, heroIds: toggleId(data.heroIds, heroId) })),
+    submit: (event) => submitCategoryForm(event, poll, draft, editingId, setDraft, setEditingId),
   };
 }
 
 function DrawerHeader({ poll }) {
   return (
     <div className="drawer-header">
-      <div>
-        <p className="eyebrow">Manage</p>
-        <h2>Categories</h2>
-      </div>
-      <button
-        aria-label="Close category manager"
-        onClick={poll.closeDrawer}
-        type="button"
-      >
-        <X size={20} />
-      </button>
+      <div><p className="eyebrow">Manage</p><h2>Categories</h2></div>
+      <button aria-label="Close category manager" onClick={poll.closeDrawer} type="button"><X size={20} /></button>
     </div>
   );
 }
@@ -535,32 +434,19 @@ function DrawerHeader({ poll }) {
 function CategoryForm({ editor, poll }) {
   return (
     <form className="category-form" onSubmit={editor.submit}>
-      <input
-        onChange={(event) => editor.setName(event.target.value)}
-        placeholder="Category name"
-        required
-        value={editor.draft.name}
-      />
-      <textarea
-        onChange={(event) => editor.setDescription(event.target.value)}
-        placeholder="Description"
-        value={editor.draft.description}
-      />
+      <CategoryTextFields editor={editor} />
       <HeroEligibility editor={editor} heroes={poll.heroes} />
-      <div className="form-actions">
-        <button disabled={!canSaveCategory(editor, poll)}>
-          {editor.editingId ? <Save size={17} /> : <Plus size={17} />}
-          <span>{editor.editingId ? "Save" : "Add"}</span>
-        </button>
-        {editor.editingId && (
-          <button onClick={editor.cancel} type="button">
-            <X size={17} />
-            <span>Cancel</span>
-          </button>
-        )}
-      </div>
+      <CategoryFormActions editor={editor} poll={poll} />
     </form>
   );
+}
+
+function CategoryTextFields({ editor }) {
+  return <><input onChange={(event) => editor.setName(event.target.value)} placeholder="Category name" required value={editor.draft.name} /><textarea onChange={(event) => editor.setDescription(event.target.value)} placeholder="Description" value={editor.draft.description} /></>;
+}
+
+function CategoryFormActions({ editor, poll }) {
+  return <div className="form-actions"><button disabled={!canSaveCategory(editor, poll)}>{editor.editingId ? <Save size={17} /> : <Plus size={17} />}<span>{editor.editingId ? "Save" : "Add"}</span></button>{editor.editingId && <button onClick={editor.cancel} type="button"><X size={17} /><span>Cancel</span></button>}</div>;
 }
 
 function HeroEligibility({ editor, heroes }) {
@@ -644,56 +530,23 @@ function CategoryItem({ editor, item, poll }) {
 function CategoryActions({ editor, item, poll }) {
   return (
     <div className="item-actions">
-      <button
-        aria-label={`Vote in ${item.name}`}
-        disabled={item.heroIds.length < 2}
-        onClick={() => poll.startCategory(item)}
-        title="Vote"
-        type="button"
-      >
-        <Vote size={16} />
-      </button>
-      <button
-        aria-label={`See ${item.name} results`}
-        onClick={() => poll.openResults(item)}
-        title="Results"
-        type="button"
-      >
-        <BarChart3 size={16} />
-      </button>
-      <button
-        aria-label={`Edit ${item.name}`}
-        onClick={() => editor.edit(item)}
-        title="Edit"
-        type="button"
-      >
-        <Pencil size={16} />
-      </button>
-      <button
-        aria-label={`Delete ${item.name}`}
-        onClick={() => poll.deleteCategory(item.id)}
-        title="Delete"
-        type="button"
-      >
-        <Trash2 size={16} />
-      </button>
+      <ItemAction disabled={item.heroIds.length < 2} icon={<Vote size={16} />} label={`Vote in ${item.name}`} onClick={() => poll.startCategory(item)} title="Vote" />
+      <ItemAction icon={<BarChart3 size={16} />} label={`See ${item.name} results`} onClick={() => poll.openResults(item)} title="Results" />
+      <ItemAction icon={<Pencil size={16} />} label={`Edit ${item.name}`} onClick={() => editor.edit(item)} title="Edit" />
+      <ItemAction icon={<Trash2 size={16} />} label={`Delete ${item.name}`} onClick={() => poll.deleteCategory(item.id)} title="Delete" />
     </div>
   );
+}
+
+function ItemAction({ disabled = false, icon, label, onClick, title }) {
+  return <button aria-label={label} disabled={disabled} onClick={onClick} title={title} type="button">{icon}</button>;
 }
 
 function ResultsModal({ poll }) {
   return (
     <div className="modal-layer">
-      <button
-        className="modal-backdrop"
-        aria-label="Close results"
-        onClick={poll.closeResults}
-        type="button"
-      />
-      <section aria-modal="true" className="results-modal" role="dialog">
-        <ResultsHeader poll={poll} />
-        <ResultsBody poll={poll} />
-      </section>
+      <button className="modal-backdrop" aria-label="Close results" onClick={poll.closeResults} type="button" />
+      <section aria-modal="true" className="results-modal" role="dialog"><ResultsHeader poll={poll} /><ResultsBody poll={poll} /></section>
     </div>
   );
 }
@@ -701,17 +554,8 @@ function ResultsModal({ poll }) {
 function ResultsHeader({ poll }) {
   return (
     <header className="results-header">
-      <div>
-        <p className="eyebrow">Results</p>
-        <h2>{poll.resultCategory.name}</h2>
-      </div>
-      <button
-        aria-label="Close results"
-        onClick={poll.closeResults}
-        type="button"
-      >
-        <X size={20} />
-      </button>
+      <div><p className="eyebrow">Results</p><h2>{poll.resultCategory.name}</h2></div>
+      <button aria-label="Close results" onClick={poll.closeResults} type="button"><X size={20} /></button>
     </header>
   );
 }
@@ -753,7 +597,7 @@ function ResultRow({ hero }) {
 function ResultScore({ hero }) {
   return (
     <div className="result-score">
-      <span>{formatPoints(hero.points)} pts</span>
+      <span>{formatScore(hero.points)} score</span>
       <strong>{hero.ballots} ballots</strong>
       <em>avg {hero.averageRank}</em>
     </div>
@@ -1037,8 +881,8 @@ function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
 
-function formatPoints(points) {
-  return points.toFixed(3).replace(/\.?0+$/, "");
+function formatScore(points) {
+  return (points * 100).toFixed(2).replace(/\.?0+$/, "");
 }
 
 function getErrorMessage(error) {

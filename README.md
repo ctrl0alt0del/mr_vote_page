@@ -44,7 +44,7 @@ When defining a category, choose which heroes can participate. Presets cover all
 
 Before voting, the user chooses one category. The app opens a draggable ordered list of the eligible heroes and stores the submitted order through `submit_ranked_ballot(category_id, voter_key, hero_ids)`.
 
-The app hides results during voting. For analysis, query `category_rankings`, which uses Dowdall scoring from stored ordered ballots: first place gets `1`, second gets `1/2`, third gets `1/3`, and so on.
+The app hides results during voting. For analysis, query `category_rankings`, which uses average Dowdall scoring from stored ordered ballots: first place gets `1`, second gets `1/2`, third gets `1/3`, and the final score is normalized by ballot count. The frontend displays that normalized score on a `0..100` scale.
 
 Categories are editable from the browser. The included RLS policies intentionally allow public category create, update, and delete so you can manage categories from the SPA. Add Supabase Auth and stricter policies before sharing the manager controls with untrusted users.
 
@@ -56,7 +56,7 @@ If you already ran the earlier schemas, push the pending migrations:
 npx supabase db push
 ```
 
-The latest migration is `supabase/migrations/20260708203000_ranked_ballots.sql`.
+The latest migration is `supabase/migrations/20260709090000_normalized_dowdall_scores.sql`.
 
 ## Analysis
 
