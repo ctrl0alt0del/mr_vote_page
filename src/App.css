@@ -51,6 +51,7 @@
 .category-drawer,
 .start-panel,
 .ranking-panel,
+.tier-panel,
 .hero-card {
   background: var(--panel);
   border: 2px solid var(--border);
@@ -78,7 +79,8 @@
 
 .category-drawer,
 .start-panel,
-.ranking-panel {
+.ranking-panel,
+.tier-panel {
   box-shadow: var(--shadow);
   display: grid;
   gap: 14px;
@@ -91,7 +93,8 @@
 }
 
 .start-panel,
-.ranking-panel {
+.ranking-panel,
+.tier-panel {
   border-top: 5px solid var(--gold);
 }
 
@@ -159,6 +162,7 @@
 .form-actions,
 .item-actions,
 .session-categories,
+.poll-type-buttons,
 .preset-buttons,
 .progress-strip,
 .ranking-actions {
@@ -170,6 +174,7 @@
 .form-actions button,
 .item-actions button,
 .session-categories button,
+.poll-type-buttons button,
 .rank-controls button,
 .ranking-actions button,
 .drawer-fab,
@@ -184,6 +189,7 @@
 .item-actions button,
 .category-name,
 .session-categories button,
+.poll-type-buttons button,
 .preset-buttons button,
 .rank-controls button,
 .secondary-button,
@@ -201,6 +207,7 @@
 .form-actions button,
 .item-actions button,
 .session-categories button,
+.poll-type-buttons button,
 .preset-buttons button,
 .rank-controls button,
 .secondary-button,
@@ -211,6 +218,7 @@
 
 .form-actions button:first-child,
 .session-categories button.selected,
+.poll-type-buttons button.active,
 .preset-buttons button.active,
 .start-button,
 .vote-button {
@@ -385,7 +393,16 @@
   font-size: 0.72rem;
 }
 
-.ranking-panel {
+.session-categories em {
+  color: var(--gold);
+  font-family: 'Segoe UI', sans-serif;
+  font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.ranking-panel,
+.tier-panel {
   gap: 18px;
   min-height: 520px;
 }
@@ -481,6 +498,163 @@
 
 .ranking-actions {
   align-items: center;
+}
+
+.poll-type-buttons button {
+  min-height: 34px;
+}
+
+.tier-settings,
+.tier-editor {
+  display: grid;
+  gap: 8px;
+}
+
+.tier-name-field {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: minmax(0, 1fr) 38px;
+}
+
+.tier-name-field button,
+.tier-editor > button {
+  background: var(--panel-2);
+  border: 0;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-weight: 900;
+  min-height: 34px;
+  text-transform: uppercase;
+}
+
+.tier-editor > button {
+  align-items: center;
+  display: inline-flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.tier-board {
+  display: grid;
+  gap: 10px;
+}
+
+.tier-board.horizontal {
+  align-items: start;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+}
+
+.tier-bucket {
+  background: rgba(8, 9, 13, 0.7);
+  border: 2px solid rgba(255, 255, 255, 0.14);
+  display: grid;
+  grid-template-columns: 126px minmax(0, 1fr);
+  min-height: 92px;
+}
+
+.tier-board.horizontal .tier-bucket {
+  grid-template-columns: 1fr;
+}
+
+.tier-bucket.over {
+  border-color: var(--gold);
+  box-shadow: inset 0 0 0 2px rgba(255, 222, 77, 0.2);
+}
+
+.tier-label {
+  align-items: center;
+  background: var(--panel-2);
+  color: var(--gold);
+  display: grid;
+  justify-items: center;
+  padding: 8px;
+  text-align: center;
+}
+
+.tier-label strong {
+  color: var(--text-strong);
+  font-size: 1.8rem;
+}
+
+.tier-label span {
+  color: var(--text-muted);
+  font-family: 'Segoe UI', sans-serif;
+  font-size: 0.68rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.tier-dropzone {
+  align-content: start;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  min-height: 88px;
+  padding: 8px;
+}
+
+.tier-hero {
+  align-items: center;
+  background: rgba(17, 19, 26, 0.9);
+  border: 2px solid rgba(255, 255, 255, 0.14);
+  border-left: 5px solid var(--role);
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 26px 46px minmax(128px, 1fr) 32px;
+  min-height: 58px;
+  padding: 5px;
+}
+
+.tier-hero.dragging {
+  border-color: var(--gold);
+  opacity: 0.75;
+  z-index: 3;
+}
+
+.tier-hero .portrait {
+  height: 46px;
+  width: 46px;
+}
+
+.tier-hero .hero-copy {
+  min-width: 0;
+}
+
+.tier-hero .hero-copy h2 {
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.tier-controls {
+  display: grid;
+  gap: 4px;
+  grid-template-columns: 30px;
+}
+
+.tier-controls button {
+  background: var(--panel-2);
+  border: 0;
+  color: var(--text-muted);
+  cursor: pointer;
+  min-height: 24px;
+  padding: 0;
+}
+
+.tier-controls button:disabled {
+  cursor: not-allowed;
+  opacity: 0.36;
+}
+
+.tier-results,
+.tier-result-group {
+  display: grid;
+  gap: 10px;
+}
+
+.tier-result-group {
+  border: 2px solid rgba(255, 255, 255, 0.14);
+  grid-template-columns: 126px minmax(0, 1fr);
+  padding: 8px;
 }
 
 .secondary-button {
@@ -878,6 +1052,33 @@
   }
 
   .rank-controls {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tier-bucket {
+    grid-template-columns: 1fr;
+  }
+
+  .tier-result-group {
+    grid-template-columns: 1fr;
+  }
+
+  .tier-label {
+    grid-template-columns: auto 1fr;
+    justify-items: start;
+    text-align: left;
+  }
+
+  .tier-dropzone {
+    grid-template-columns: 1fr;
+  }
+
+  .tier-hero {
+    grid-template-columns: 30px 46px minmax(0, 1fr);
+  }
+
+  .tier-controls {
     grid-column: 1 / -1;
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

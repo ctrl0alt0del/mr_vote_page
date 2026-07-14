@@ -1,12 +1,12 @@
 # Marvel Rivals Hero Vote
 
-A React SPA for ranked Marvel Rivals hero voting across dynamic categories. The frontend is static and ready for GitHub Pages; ordered ballots persist in Supabase Postgres.
+A React SPA for Marvel Rivals hero voting across dynamic categories. The frontend is static and ready for GitHub Pages; ranked-list and tier-list ballots persist in Supabase Postgres.
 
 ## Stack
 
 - React + Vite
 - Supabase JS client
-- Supabase Postgres, RLS, public category CRUD, and ranked ballots
+- Supabase Postgres, RLS, public category CRUD, ranked ballots, and tier ballots
 - GitHub Pages deployment with GitHub Actions
 
 ## Local Setup
@@ -40,11 +40,11 @@ The Vite config uses `base: './'`, so the built app works under a GitHub Pages r
 
 ## Supabase Notes
 
-When defining a category, choose which heroes can participate. Presets cover all heroes and each role, and the icon grid allows manual refinement.
+When defining a category, choose whether it is a rank-list poll or tier-list poll, then choose which heroes can participate. Tier-list polls support custom tier names and vertical or horizontal board layout. Presets cover all heroes and each role, and the icon grid allows manual refinement.
 
-Before voting, the user chooses one category. The app opens a draggable ordered list of the eligible heroes and stores the submitted order through `submit_ranked_ballot(category_id, voter_key, hero_ids)`.
+Before voting, the user chooses one category. Rank-list polls open a draggable ordered list and store submissions through `submit_ranked_ballot(category_id, voter_key, hero_ids)`. Tier-list polls open custom tier buckets with a draggable hero pool and store submissions through `submit_tier_ballot(category_id, voter_key, hero_ids, tier_keys)`.
 
-The app hides results during voting. For analysis, query `category_rankings`, which uses average Dowdall scoring from stored ordered ballots: first place gets `1`, second gets `1/2`, third gets `1/3`, and the final score is normalized by ballot count. The frontend displays that normalized score on a `0..100` scale.
+The app hides results during voting. For analysis, query `category_rankings`. Ranked polls use average Dowdall scoring. Tier polls are categorical: each hero is assigned to the most common submitted tier, and the displayed percentage is that tier's vote share.
 
 Categories are editable from the browser. The included RLS policies intentionally allow public category create, update, and delete so you can manage categories from the SPA. Add Supabase Auth and stricter policies before sharing the manager controls with untrusted users.
 
@@ -56,15 +56,15 @@ If you already ran the earlier schemas, push the pending migrations:
 npx supabase db push
 ```
 
-The latest migration is `supabase/migrations/20260709090000_normalized_dowdall_scores.sql`.
+The latest migration is `supabase/migrations/20260714130000_custom_tier_modes.sql`.
 
 ## Analysis
 
 Run `supabase/analysis.sql` in the Supabase SQL editor to get:
 
-- ranked heroes by category
+- ranked heroes or most common tier by category
 - submitted ballots by category
-- highest scoring heroes by category
+- highest scoring or highest occurrence heroes by category
 - ballot submissions over time
 
 ## Roster

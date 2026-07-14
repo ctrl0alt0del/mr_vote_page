@@ -4,7 +4,9 @@ import {
   DndContext,
   KeyboardSensor,
   MouseSensor,
+  pointerWithin,
   TouchSensor,
+  useDroppable,
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
@@ -38,12 +40,17 @@ import {
   fetchCategoryRankings,
   fetchSetup,
   submitRankedBallot,
+  submitTierBallot,
   updateCategory,
 } from "./lib/api";
 import { hasSupabaseConfig } from "./lib/supabase";
 import { getVoterKey } from "./lib/voter";
 
-const blankDraft = { description: "", heroIds: [], name: "" };
+const pollTypes = [{ label: "Rank list", value: "ranked" }, { label: "Tier list", value: "tier" }];
+const tierOrientations = [{ label: "Vertical", value: "vertical" }, { label: "Horizontal", value: "horizontal" }];
+const defaultTierConfig = [{ key: "s", label: "S" }, { key: "a", label: "A" }, { key: "b", label: "B" }, { key: "c", label: "C" }, { key: "d", label: "D" }];
+const poolTier = { key: "unranked", label: "Pool", score: "Drag heroes" };
+const blankDraft = { description: "", heroIds: [], name: "", pollType: "ranked", tierConfig: defaultTierConfig, tierOrientation: "vertical" };
 
 function App() {
   const poll = usePoll();
@@ -70,11 +77,13 @@ function buildActions(state, setState) {
     closeDrawer: () => setDrawerOpen(false, setState), closeResults: () => closeResults(setState),
     createCategory: (draft) => saveNewCategory(draft, setState), deleteCategory: (id) => removeCategory(id, setState),
     moveHero: (heroId, offset) => moveRankedHero(heroId, offset, setState), openDrawer: () => setDrawerOpen(true, setState),
+    moveTierHero: (activeId, overId) => moveTierHero(activeId, overId, setState), moveTierStep: (heroId, direction) => moveTierHeroStep(heroId, direction, state.activeCategory?.tierConfig, setState),
     openResults: (category) => loadResults(category, setState), refresh: () => loadSetup(setState),
     reorderHero: (activeId, overId) => reorderRankedHero(activeId, overId, setState),
     showResultModal: () => setResultView("modal", setState), showResultPage: () => setResultView("page", setState),
-    startCategory: (category) => startCategoryRanking(category, state.heroes, setState),
-    submitRanking: () => saveRanking(state, setState), updateCategory: (id, draft) => saveCategoryEdit(id, draft, setState),
+    startCategory: (category) => startCategoryPoll(category, state.heroes, setState),
+    submitRanking: () => saveRanking(state, setState), submitTier: () => saveTier(state, setState),
+    updateCategory: (id, draft) => saveCategoryEdit(id, draft, setState),
   };
 }
 
@@ -83,7 +92,7 @@ function makeInitialState() {
     activeCategory: null, categories: [], categoryBusy: false, completedCategory: null,
     drawerOpen: false, error: "", heroes: [], rankingIds: [], resultCategory: null,
     resultError: "", resultRankings: [], resultStatus: "idle", resultView: "modal",
-    status: hasSupabaseConfig ? "loading" : "setup",
+    status: hasSupabaseConfig ? "loading" : "setup", tierBuckets: emptyTierBuckets(),
     submitBusy: false,
   };
 }
@@ -105,22 +114,29 @@ function setSetupLoaded(setup, status, setState) {
     activeCategory: null,
     categoryBusy: false,
     rankingIds: [],
+    tierBuckets: emptyTierBuckets(),
     status,
   }));
 }
 
-function startCategoryRanking(category, heroes, setState) {
+function startCategoryPoll(category, heroes, setState) {
   const rankingIds = shuffledHeroIds(category, heroes);
   if (rankingIds.length < 2)
     return setInlineError("Category needs at least two heroes.", setState);
-  setState((data) => ({
-    ...data,
-    activeCategory: category,
-    completedCategory: null,
-    error: "",
-    rankingIds,
-    status: "ranking",
-  }));
+  setState((data) => ({ ...data, ...startStateForType(category, rankingIds) }));
+}
+
+function startStateForType(category, rankingIds) {
+  if (category.pollType === "tier") return tierStartState(category, rankingIds);
+  return rankedStartState(category, rankingIds);
+}
+
+function rankedStartState(category, rankingIds) {
+  return { activeCategory: category, completedCategory: null, error: "", rankingIds, status: "ranking", tierBuckets: emptyTierBuckets() };
+}
+
+function tierStartState(category, rankingIds) {
+  return { activeCategory: category, completedCategory: null, error: "", rankingIds: [], status: "tiering", tierBuckets: makeTierBuckets(rankingIds, category.tierConfig) };
 }
 
 async function saveRanking(state, setState) {
@@ -138,6 +154,18 @@ async function saveRanking(state, setState) {
   }
 }
 
+async function saveTier(state, setState) {
+  if (!state.activeCategory) return;
+  if (!isTierComplete(state.tierBuckets, state.activeCategory.tierConfig)) return setInlineError("Place every hero into a tier before submitting.", setState);
+  setState((data) => ({ ...data, error: "", submitBusy: true }));
+  try {
+    await submitTierBallot(state.activeCategory.id, tierItemsFromBuckets(state.tierBuckets, state.activeCategory.tierConfig), getVoterKey());
+    setRankingDone(state.activeCategory, setState);
+  } catch (error) {
+    setActionError(error, setState);
+  }
+}
+
 function setRankingDone(category, setState) {
   setState((data) => ({
     ...data,
@@ -146,6 +174,7 @@ function setRankingDone(category, setState) {
     rankingIds: [],
     status: "done",
     submitBusy: false,
+    tierBuckets: emptyTierBuckets(),
   }));
 }
 
@@ -249,6 +278,7 @@ function VotingStage({ poll }) {
   if (poll.status === "error") return <ErrorMessage poll={poll} />;
   if (poll.status === "done") return <DoneStage poll={poll} />;
   if (poll.status === "ranking") return <RankingStage poll={poll} />;
+  if (poll.status === "tiering") return <TierStage poll={poll} />;
   return <StartStage poll={poll} />;
 }
 
@@ -284,6 +314,7 @@ function CategoryChoice({ item, poll }) {
     >
       <Vote size={18} />
       <span>{item.name}</span>
+      <em>{pollTypeLabel(item.pollType)}</em>
       <strong>{item.heroIds.length} heroes</strong>
     </button>
   );
@@ -395,6 +426,64 @@ function RankingAction({ className, disabled, icon, label, onClick }) {
   return <button className={className} disabled={disabled} onClick={onClick} type="button">{icon}<span>{label}</span></button>;
 }
 
+function TierStage({ poll }) {
+  return <section className="tier-panel"><RankingHeader category={poll.activeCategory} total={tierTotal(poll.tierBuckets)} /><TierBoard poll={poll} /><TierActions poll={poll} /><InlineError error={poll.error} /></section>;
+}
+
+function TierBoard({ poll }) {
+  const sensors = useRankingSensors();
+  const heroesById = heroMap(poll.heroes);
+  const tiers = poll.activeCategory.tierConfig;
+  return <DndContext collisionDetection={tierCollisionDetection} onDragEnd={(event) => handleTierSortEnd(event, poll)} onDragOver={(event) => handleTierDragOver(event, poll)} sensors={sensors}><div className={tierBoardClass(poll.activeCategory)}>{tiers.map((tier) => <TierBucket heroesById={heroesById} key={tier.key} poll={poll} tier={tier} />)}<TierBucket heroesById={heroesById} poll={poll} tier={poolTier} /></div></DndContext>;
+}
+
+function TierBucket({ heroesById, poll, tier }) {
+  const drop = useDroppable({ id: tier.key });
+  const ids = poll.tierBuckets[tier.key] ?? [];
+  return <section className={`tier-bucket${drop.isOver ? " over" : ""}`}><TierBucketLabel tier={tier} /><SortableContext items={ids} strategy={verticalListSortingStrategy}><div className="tier-dropzone" ref={drop.setNodeRef}>{tierHeroCards(ids, heroesById, poll, tier.key)}{!ids.length && <p className="muted">Empty</p>}</div></SortableContext></section>;
+}
+
+function TierBucketLabel({ tier }) {
+  return <div className="tier-label"><strong>{tier.label}</strong><span>{tier.score ?? "Tier"}</span></div>;
+}
+
+function TierHero({ bucketKey, hero, poll }) {
+  const sortable = useSortable({ id: hero.id });
+  const dragging = sortable.isDragging ? " dragging" : "";
+  return <article className={`tier-hero ${roleClass(hero.role)}${dragging}`} ref={sortable.setNodeRef} style={sortableStyle(sortable)}><DragHandle hero={hero} sortable={sortable} /><HeroPortrait hero={hero} /><HeroCopy hero={hero} /><TierStepControls bucketKey={bucketKey} hero={hero} poll={poll} /></article>;
+}
+
+function TierStepControls({ bucketKey, hero, poll }) {
+  return <div className="tier-controls"><TierStepButton bucketKey={bucketKey} direction={-1} hero={hero} icon={<ChevronUp size={16} />} poll={poll} /><TierStepButton bucketKey={bucketKey} direction={1} hero={hero} icon={<ChevronDown size={16} />} poll={poll} /></div>;
+}
+
+function TierStepButton({ bucketKey, direction, hero, icon, poll }) {
+  return <button aria-label={`Move ${hero.name} ${direction < 0 ? "up" : "down"} a tier`} disabled={tierStepDisabled(bucketKey, direction, poll.activeCategory.tierConfig)} onClick={() => poll.moveTierStep(hero.id, direction)} type="button">{icon}</button>;
+}
+
+function TierActions({ poll }) {
+  return <div className="ranking-actions"><RankingAction className="start-button" disabled={poll.submitBusy} icon={<Save size={18} />} label="Submit Tiers" onClick={poll.submitTier} /><RankingAction className="secondary-button" disabled={poll.submitBusy} icon={<ArrowLeft size={18} />} label="Back" onClick={poll.cancelVote} /></div>;
+}
+
+function tierBoardClass(category) {
+  return `tier-board ${category.tierOrientation === "horizontal" ? "horizontal" : "vertical"}`;
+}
+
+function tierCollisionDetection(args) {
+  const hits = pointerWithin(args);
+  return hits.length ? hits : closestCenter(args);
+}
+
+function handleTierDragOver(event, poll) {
+  if (!event.over || event.active.id === event.over.id) return;
+  poll.moveTierHero(event.active.id, event.over.id);
+}
+
+function handleTierSortEnd(event, poll) {
+  if (!event.over || event.active.id === event.over.id) return;
+  poll.moveTierHero(event.active.id, event.over.id);
+}
+
 function CategoryDrawer({ poll }) {
   const editor = useCategoryEditor(poll);
   return (
@@ -416,11 +505,12 @@ function useCategoryEditor(poll) {
 
 function useEditorApi(draft, editingId, poll, setDraft, setEditingId) {
   return {
-    cancel: () => cancelCategoryEdit(setDraft, setEditingId), draft,
-    edit: (category) => startCategoryEdit(category, setDraft, setEditingId), editingId,
+    cancel: () => cancelCategoryEdit(setDraft, setEditingId), draft, editingId, edit: (category) => startCategoryEdit(category, setDraft, setEditingId),
     setDescription: (description) => setDraft((data) => ({ ...data, description })),
-    setHeroIds: (heroIds) => setDraft((data) => ({ ...data, heroIds })),
-    setName: (name) => setDraft((data) => ({ ...data, name })),
+    setHeroIds: (heroIds) => setDraft((data) => ({ ...data, heroIds })), setName: (name) => setDraft((data) => ({ ...data, name })),
+    setPollType: (pollType) => setDraft((data) => ({ ...data, pollType })), setTierOrientation: (tierOrientation) => setDraft((data) => ({ ...data, tierOrientation })),
+    setTierLabel: (key, label) => setDraft((data) => ({ ...data, tierConfig: renameTier(data.tierConfig, key, label) })),
+    addTier: () => setDraft((data) => ({ ...data, tierConfig: addTier(data.tierConfig) })), removeTier: (key) => setDraft((data) => ({ ...data, tierConfig: removeTier(data.tierConfig, key) })),
     toggleHero: (heroId) => setDraft((data) => ({ ...data, heroIds: toggleId(data.heroIds, heroId) })),
     submit: (event) => submitCategoryForm(event, poll, draft, editingId, setDraft, setEditingId),
   };
@@ -439,6 +529,8 @@ function CategoryForm({ editor, poll }) {
   return (
     <form className="category-form" onSubmit={editor.submit}>
       <CategoryTextFields editor={editor} />
+      <PollTypePicker editor={editor} />
+      <TierSettings editor={editor} />
       <HeroEligibility editor={editor} heroes={poll.heroes} />
       <CategoryFormActions editor={editor} poll={poll} />
     </form>
@@ -447,6 +539,35 @@ function CategoryForm({ editor, poll }) {
 
 function CategoryTextFields({ editor }) {
   return <><input onChange={(event) => editor.setName(event.target.value)} placeholder="Category name" required value={editor.draft.name} /><textarea onChange={(event) => editor.setDescription(event.target.value)} placeholder="Description" value={editor.draft.description} /></>;
+}
+
+function PollTypePicker({ editor }) {
+  return <div className="poll-type-buttons">{pollTypes.map((type) => <PollTypeButton editor={editor} key={type.value} type={type} />)}</div>;
+}
+
+function PollTypeButton({ editor, type }) {
+  return <button className={editor.draft.pollType === type.value ? "active" : ""} onClick={() => editor.setPollType(type.value)} type="button">{type.label}</button>;
+}
+
+function TierSettings({ editor }) {
+  if (editor.draft.pollType !== "tier") return null;
+  return <div className="tier-settings"><TierOrientationPicker editor={editor} /><TierEditor editor={editor} /></div>;
+}
+
+function TierOrientationPicker({ editor }) {
+  return <div className="poll-type-buttons">{tierOrientations.map((item) => <TierOrientationButton editor={editor} item={item} key={item.value} />)}</div>;
+}
+
+function TierOrientationButton({ editor, item }) {
+  return <button className={editor.draft.tierOrientation === item.value ? "active" : ""} onClick={() => editor.setTierOrientation(item.value)} type="button">{item.label}</button>;
+}
+
+function TierEditor({ editor }) {
+  return <div className="tier-editor">{editor.draft.tierConfig.map((tier) => <TierNameField editor={editor} key={tier.key} tier={tier} />)}<button onClick={editor.addTier} type="button"><Plus size={16} /><span>Add Tier</span></button></div>;
+}
+
+function TierNameField({ editor, tier }) {
+  return <div className="tier-name-field"><input onChange={(event) => editor.setTierLabel(tier.key, event.target.value)} value={tier.label} /><button disabled={editor.draft.tierConfig.length <= 2} onClick={() => editor.removeTier(tier.key)} type="button"><Trash2 size={15} /></button></div>;
 }
 
 function CategoryFormActions({ editor, poll }) {
@@ -525,7 +646,7 @@ function CategoryItem({ editor, item, poll }) {
   return (
     <article className="category-item">
       <div className="category-name">{item.name}</div>
-      <p className="muted">{item.heroIds.length} heroes</p>
+      <p className="muted">{pollTypeLabel(item.pollType)} / {item.heroIds.length} heroes</p>
       <CategoryActions editor={editor} item={item} poll={poll} />
     </article>
   );
@@ -582,9 +703,32 @@ function ResultsBody({ poll }) {
     return <StatusMessage text="Loading results..." />;
   if (poll.resultError)
     return <p className="inline-error">{poll.resultError}</p>;
-  if (!poll.resultRankings.length)
+  if (!hasSubmittedVotes(poll.resultRankings))
     return <p className="muted">No submitted rankings yet.</p>;
+  if (poll.resultCategory.pollType === "tier") return <TierResultsList poll={poll} />;
   return <ResultsList rankings={poll.resultRankings} />;
+}
+
+function hasSubmittedVotes(rankings) {
+  return rankings.some((hero) => hero.ballots > 0);
+}
+
+function TierResultsList({ poll }) {
+  return <div className="tier-results">{poll.resultCategory.tierConfig.map((tier) => <TierResultGroup key={tier.key} rankings={poll.resultRankings} tier={tier} />)}</div>;
+}
+
+function TierResultGroup({ rankings, tier }) {
+  const heroes = rankings.filter((hero) => hero.tierKey === tier.key);
+  if (!heroes.length) return null;
+  return <section className="tier-result-group"><TierBucketLabel tier={tier} /><div className="results-list">{heroes.map((hero) => <TierResultRow hero={hero} key={hero.id} />)}</div></section>;
+}
+
+function TierResultRow({ hero }) {
+  return <article className={`result-row ${roleClass(hero.role)}`}><strong>{hero.tierLabel}</strong><HeroPortrait hero={hero} /><HeroCopy hero={hero} /><TierResultScore hero={hero} /></article>;
+}
+
+function TierResultScore({ hero }) {
+  return <div className="result-score"><span>{formatScore(hero.points)}%</span><strong>{hero.tierVotes}/{hero.ballots}</strong><em>mode</em></div>;
 }
 
 function ResultsList({ rankings }) {
@@ -701,6 +845,9 @@ function startCategoryEdit(category, setDraft, setEditingId) {
     description: category.description ?? "",
     heroIds: category.heroIds,
     name: category.name,
+    pollType: category.pollType ?? "ranked",
+    tierConfig: category.tierConfig ?? defaultTierConfig,
+    tierOrientation: category.tierOrientation ?? "vertical",
   });
   setEditingId(category.id);
 }
@@ -712,13 +859,33 @@ function cancelCategoryEdit(setDraft, setEditingId) {
 
 function cleanDraftArgs(draft) {
   return [
-    { description: draft.description.trim(), name: draft.name.trim() },
+    { description: draft.description.trim(), name: draft.name.trim(), poll_type: draft.pollType, tier_config: cleanTierConfig(draft.tierConfig), tier_orientation: draft.tierOrientation },
     draft.heroIds,
   ];
 }
 
 function canSaveCategory(editor, poll) {
-  return !poll.categoryBusy && editor.draft.heroIds.length >= 2;
+  return !poll.categoryBusy && editor.draft.heroIds.length >= 2 && validTierDraft(editor.draft);
+}
+
+function validTierDraft(draft) {
+  return draft.pollType !== "tier" || cleanTierConfig(draft.tierConfig).length >= 2;
+}
+
+function cleanTierConfig(tiers) {
+  return tiers.map((tier) => ({ ...tier, label: tier.label.trim() })).filter((tier) => tier.label);
+}
+
+function renameTier(tiers, key, label) {
+  return tiers.map((tier) => (tier.key === key ? { ...tier, label } : tier));
+}
+
+function addTier(tiers) {
+  return [...tiers, { key: `tier-${Date.now()}`, label: `Tier ${tiers.length + 1}` }];
+}
+
+function removeTier(tiers, key) {
+  return tiers.length <= 2 ? tiers : tiers.filter((tier) => tier.key !== key);
 }
 
 function initialHeroDraft(draft, editingId, heroes) {
@@ -754,9 +921,41 @@ function heroIdsByRole(heroes, role) {
     .map((hero) => hero.id);
 }
 
+function pollTypeLabel(pollType) {
+  return pollTypes.find((type) => type.value === pollType)?.label ?? "Rank list";
+}
+
 function rankedHeroes(poll) {
   const byId = new Map(poll.heroes.map((hero) => [hero.id, hero]));
   return poll.rankingIds.map((id) => byId.get(id)).filter(Boolean);
+}
+
+function heroMap(heroes) {
+  return new Map(heroes.map((hero) => [hero.id, hero]));
+}
+
+function tierHeroCards(ids, heroesById, poll, bucketKey) {
+  return ids.map((id) => heroesById.get(id)).filter(Boolean).map((hero) => <TierHero bucketKey={bucketKey} hero={hero} key={hero.id} poll={poll} />);
+}
+
+function tierTotal(buckets) {
+  return Object.values(buckets).reduce((total, ids) => total + ids.length, 0);
+}
+
+function emptyTierBuckets(tiers = defaultTierConfig) {
+  return Object.fromEntries([...tiers.map((tier) => [tier.key, []]), ["unranked", []]]);
+}
+
+function makeTierBuckets(ids, tiers) {
+  return { ...emptyTierBuckets(tiers), unranked: ids };
+}
+
+function isTierComplete(buckets, tiers) {
+  return !buckets.unranked.length && tierItemsFromBuckets(buckets, tiers).length > 1;
+}
+
+function tierItemsFromBuckets(buckets, tiers) {
+  return tiers.flatMap((tier) => buckets[tier.key].map((heroId) => ({ heroId, tierKey: tier.key })));
 }
 
 function shuffledHeroIds(category, heroes) {
@@ -794,6 +993,65 @@ function reorderRankedHero(activeId, overId, setState) {
   }));
 }
 
+function moveTierHero(activeId, overId, setState) {
+  setState((data) => ({ ...data, tierBuckets: moveTierBuckets(data.tierBuckets, activeId, overId) }));
+}
+
+function moveTierHeroStep(heroId, direction, tiers, setState) {
+  setState((data) => ({ ...data, tierBuckets: moveTierStep(data.tierBuckets, heroId, direction, tiers ?? defaultTierConfig) }));
+}
+
+function moveTierStep(buckets, heroId, direction, tiers) {
+  const fromKey = bucketKeyForId(buckets, heroId);
+  const toKey = tierKeyAtOffset(fromKey, direction, tiers);
+  if (!fromKey || !toKey || fromKey === toKey) return buckets;
+  return appendToTier(buckets, fromKey, toKey, heroId);
+}
+
+function appendToTier(buckets, fromKey, toKey, heroId) {
+  return { ...buckets, [fromKey]: buckets[fromKey].filter((id) => id !== heroId), [toKey]: [...buckets[toKey], heroId] };
+}
+
+function moveTierBuckets(buckets, activeId, overId) {
+  const fromKey = bucketKeyForId(buckets, activeId);
+  const toKey = bucketKeyForId(buckets, overId) ?? overId;
+  if (!fromKey || !buckets[toKey]) return buckets;
+  if (fromKey === toKey) return moveWithinTier(buckets, fromKey, activeId, overId);
+  return moveAcrossTier(buckets, fromKey, toKey, activeId, overId);
+}
+
+function bucketKeyForId(buckets, id) {
+  return Object.keys(buckets).find((key) => key === id || buckets[key].includes(id));
+}
+
+function tierStepDisabled(bucketKey, direction, tiers) {
+  return tierKeyAtOffset(bucketKey, direction, tiers) === bucketKey;
+}
+
+function tierKeyAtOffset(bucketKey, direction, tiers) {
+  const keys = [...tiers.map((tier) => tier.key), "unranked"];
+  const index = keys.indexOf(bucketKey);
+  if (index < 0) return bucketKey;
+  return keys[clamp(index + direction, 0, keys.length - 1)];
+}
+
+function moveWithinTier(buckets, key, activeId, overId) {
+  const overIndex = buckets[key].indexOf(overId);
+  const to = overIndex < 0 ? buckets[key].length - 1 : overIndex;
+  return { ...buckets, [key]: moveItem(buckets[key], buckets[key].indexOf(activeId), to) };
+}
+
+function moveAcrossTier(buckets, fromKey, toKey, activeId, overId) {
+  const next = [...buckets[toKey]];
+  next.splice(insertIndex(next, overId), 0, activeId);
+  return { ...buckets, [fromKey]: buckets[fromKey].filter((id) => id !== activeId), [toKey]: next };
+}
+
+function insertIndex(ids, overId) {
+  const index = ids.indexOf(overId);
+  return index < 0 ? ids.length : index;
+}
+
 function reorderIds(ids, activeId, overId) {
   return moveItem(ids, ids.indexOf(activeId), ids.indexOf(overId));
 }
@@ -825,6 +1083,7 @@ function showCategoryStart(setState) {
     rankingIds: [],
     status: "idle",
     submitBusy: false,
+    tierBuckets: emptyTierBuckets(),
   }));
 }
 
@@ -917,7 +1176,7 @@ function isMissingMigration(error) {
   const message = error?.message ?? "";
   return (
     error?.status === 404 ||
-    /category_heroes|ranked_ballots|ranked_ballot_items/.test(message)
+    /category_heroes|poll_type|tier_config|tier_orientation|ranked_ballots|ranked_ballot_items|tier_ballots|tier_ballot_items|submit_tier_ballot/.test(message)
   );
 }
 
