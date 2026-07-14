@@ -217,6 +217,8 @@
 }
 
 .form-actions button:first-child,
+.category-share.copied,
+.item-actions button.active,
 .session-categories button.selected,
 .poll-type-buttons button.active,
 .preset-buttons button.active,
@@ -381,11 +383,27 @@
   max-width: 780px;
 }
 
+.category-choice {
+  display: flex;
+  flex: 1 1 360px;
+  gap: 8px;
+  min-width: min(100%, 340px);
+}
+
 .session-categories button {
   display: inline-flex;
   gap: 10px;
   justify-content: space-between;
   min-height: 44px;
+}
+
+.category-start {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.category-share {
+  flex: 0 0 auto;
 }
 
 .session-categories strong {
@@ -548,7 +566,7 @@
   background: rgba(8, 9, 13, 0.7);
   border: 2px solid rgba(255, 255, 255, 0.14);
   display: grid;
-  grid-template-columns: 126px minmax(0, 1fr);
+  grid-template-columns: 150px minmax(0, 1fr);
   min-height: 92px;
 }
 
@@ -588,7 +606,7 @@
   align-content: start;
   display: grid;
   gap: 8px;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
   min-height: 88px;
   padding: 8px;
 }
@@ -600,8 +618,8 @@
   border-left: 5px solid var(--role);
   display: grid;
   gap: 8px;
-  grid-template-columns: 26px 46px minmax(128px, 1fr) 32px;
-  min-height: 58px;
+  grid-template-columns: 26px 46px minmax(0, 1fr) 66px;
+  min-height: 62px;
   padding: 5px;
 }
 
@@ -628,7 +646,7 @@
 .tier-controls {
   display: grid;
   gap: 4px;
-  grid-template-columns: 30px;
+  grid-template-columns: repeat(2, 30px);
 }
 
 .tier-controls button {
@@ -653,7 +671,7 @@
 
 .tier-result-group {
   border: 2px solid rgba(255, 255, 255, 0.14);
-  grid-template-columns: 126px minmax(0, 1fr);
+  grid-template-columns: 150px minmax(0, 1fr);
   padding: 8px;
 }
 

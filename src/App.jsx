@@ -28,6 +28,7 @@ import {
   Pencil,
   Plus,
   Save,
+  Share2,
   SlidersHorizontal,
   Trash2,
   Vote,
@@ -51,6 +52,7 @@ const tierOrientations = [{ label: "Vertical", value: "vertical" }, { label: "Ho
 const defaultTierConfig = [{ key: "s", label: "S" }, { key: "a", label: "A" }, { key: "b", label: "B" }, { key: "c", label: "C" }, { key: "d", label: "D" }];
 const poolTier = { key: "unranked", label: "Pool", score: "Drag heroes" };
 const blankDraft = { description: "", heroIds: [], name: "", pollType: "ranked", tierConfig: defaultTierConfig, tierOrientation: "vertical" };
+const sharedPollRoute = "/poll/";
 
 function App() {
   const poll = usePoll();
@@ -68,18 +70,24 @@ function usePoll() {
   useEffect(() => {
     void loadSetup(setState);
   }, []);
+  useEffect(() => {
+    const syncRoute = () => setState((data) => applySharedPollRoute(data));
+    window.addEventListener("hashchange", syncRoute);
+    return () => window.removeEventListener("hashchange", syncRoute);
+  }, []);
   return buildActions(state, setState);
 }
 
 function buildActions(state, setState) {
   return {
-    ...state, cancelVote: () => showCategoryStart(setState),
+    ...state, cancelVote: () => cancelVoting(setState),
     closeDrawer: () => setDrawerOpen(false, setState), closeResults: () => closeResults(setState),
     createCategory: (draft) => saveNewCategory(draft, setState), deleteCategory: (id) => removeCategory(id, setState),
     moveHero: (heroId, offset) => moveRankedHero(heroId, offset, setState), openDrawer: () => setDrawerOpen(true, setState),
     moveTierHero: (activeId, overId) => moveTierHero(activeId, overId, setState), moveTierStep: (heroId, direction) => moveTierHeroStep(heroId, direction, state.activeCategory?.tierConfig, setState),
     openResults: (category) => loadResults(category, setState), refresh: () => loadSetup(setState),
     reorderHero: (activeId, overId) => reorderRankedHero(activeId, overId, setState),
+    shareCategory: (category) => copyCategoryLink(category, setState),
     showResultModal: () => setResultView("modal", setState), showResultPage: () => setResultView("page", setState),
     startCategory: (category) => startCategoryPoll(category, state.heroes, setState),
     submitRanking: () => saveRanking(state, setState), submitTier: () => saveTier(state, setState),
@@ -90,6 +98,7 @@ function buildActions(state, setState) {
 function makeInitialState() {
   return {
     activeCategory: null, categories: [], categoryBusy: false, completedCategory: null,
+    copiedCategoryId: "",
     drawerOpen: false, error: "", heroes: [], rankingIds: [], resultCategory: null,
     resultError: "", resultRankings: [], resultStatus: "idle", resultView: "modal",
     status: hasSupabaseConfig ? "loading" : "setup", tierBuckets: emptyTierBuckets(),
@@ -108,7 +117,7 @@ async function loadSetup(setState, status = "idle") {
 }
 
 function setSetupLoaded(setup, status, setState) {
-  setState((data) => ({
+  setState((data) => applySharedPollRoute({
     ...data,
     ...setup,
     activeCategory: null,
@@ -123,7 +132,69 @@ function startCategoryPoll(category, heroes, setState) {
   const rankingIds = shuffledHeroIds(category, heroes);
   if (rankingIds.length < 2)
     return setInlineError("Category needs at least two heroes.", setState);
+  setSharedPollRoute(category.id);
   setState((data) => ({ ...data, ...startStateForType(category, rankingIds) }));
+}
+
+function applySharedPollRoute(data) {
+  const categoryId = linkedCategoryId();
+  if (!categoryId || !data.categories.length || !data.heroes.length) return data;
+  if (data.activeCategory?.id === categoryId && ["ranking", "tiering"].includes(data.status)) return data;
+  const category = data.categories.find((item) => item.id === categoryId);
+  if (!category) return { ...data, activeCategory: null, error: "Shared poll was not found.", rankingIds: [], status: "idle", tierBuckets: emptyTierBuckets() };
+  const rankingIds = shuffledHeroIds(category, data.heroes);
+  if (rankingIds.length < 2)
+    return { ...data, activeCategory: null, error: "Shared poll needs at least two eligible heroes.", rankingIds: [], status: "idle", tierBuckets: emptyTierBuckets() };
+  return { ...data, ...startStateForType(category, rankingIds), drawerOpen: false };
+}
+
+async function copyCategoryLink(category, setState) {
+  try {
+    await writeClipboard(categoryShareUrl(category.id));
+    setState((data) => ({ ...data, copiedCategoryId: category.id, error: "" }));
+    window.setTimeout(() => {
+      setState((data) => data.copiedCategoryId === category.id ? { ...data, copiedCategoryId: "" } : data);
+    }, 1600);
+  } catch (error) {
+    setInlineError(getErrorMessage(error), setState);
+  }
+}
+
+async function writeClipboard(text) {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return;
+    } catch {
+      // Some browsers expose Clipboard API but reject it outside secure contexts.
+    }
+  }
+  const field = document.createElement("textarea");
+  field.value = text;
+  field.setAttribute("readonly", "");
+  field.style.position = "fixed";
+  field.style.opacity = "0";
+  document.body.append(field);
+  field.select();
+  const copied = document.execCommand("copy");
+  field.remove();
+  if (!copied) throw new Error("Could not copy the share link.");
+}
+
+function categoryShareUrl(categoryId) {
+  const url = new URL(window.location.href);
+  url.hash = `${sharedPollRoute}${encodeURIComponent(categoryId)}`;
+  return url.toString();
+}
+
+function linkedCategoryId() {
+  const hash = window.location.hash.replace(/^#/, "");
+  const match = hash.match(/^\/?poll\/([^/?#]+)/);
+  return match ? decodeURIComponent(match[1]) : "";
+}
+
+function setSharedPollRoute(categoryId) {
+  window.history.replaceState(null, "", categoryShareUrl(categoryId));
 }
 
 function startStateForType(category, rankingIds) {
@@ -288,6 +359,7 @@ function StartStage({ poll }) {
       <p className="eyebrow">Category select</p>
       <h2>Choose Category</h2>
       <CategoryPicker poll={poll} />
+      <InlineError error={poll.error} />
     </section>
   );
 }
@@ -307,16 +379,29 @@ function CategoryPicker({ poll }) {
 function CategoryChoice({ item, poll }) {
   const disabled = item.heroIds.length < 2;
   return (
-    <button
-      disabled={disabled}
-      onClick={() => poll.startCategory(item)}
-      type="button"
-    >
-      <Vote size={18} />
-      <span>{item.name}</span>
-      <em>{pollTypeLabel(item.pollType)}</em>
-      <strong>{item.heroIds.length} heroes</strong>
-    </button>
+    <article className="category-choice">
+      <button
+        className="category-start"
+        disabled={disabled}
+        onClick={() => poll.startCategory(item)}
+        type="button"
+      >
+        <Vote size={18} />
+        <span>{item.name}</span>
+        <em>{pollTypeLabel(item.pollType)}</em>
+        <strong>{item.heroIds.length} heroes</strong>
+      </button>
+      <button
+        aria-label={`Copy ${item.name} share link`}
+        className={`category-share${poll.copiedCategoryId === item.id ? " copied" : ""}`}
+        onClick={() => poll.shareCategory(item)}
+        title={poll.copiedCategoryId === item.id ? "Copied" : "Share"}
+        type="button"
+      >
+        <Share2 size={18} />
+        <span>{poll.copiedCategoryId === item.id ? "Copied" : "Share"}</span>
+      </button>
+    </article>
   );
 }
 
@@ -656,6 +741,7 @@ function CategoryActions({ editor, item, poll }) {
   return (
     <div className="item-actions">
       <ItemAction disabled={item.heroIds.length < 2} icon={<Vote size={16} />} label={`Vote in ${item.name}`} onClick={() => poll.startCategory(item)} title="Vote" />
+      <ItemAction active={poll.copiedCategoryId === item.id} icon={<Share2 size={16} />} label={`Copy ${item.name} share link`} onClick={() => poll.shareCategory(item)} title={poll.copiedCategoryId === item.id ? "Copied" : "Share"} />
       <ItemAction icon={<BarChart3 size={16} />} label={`See ${item.name} results`} onClick={() => poll.openResults(item)} title="Results" />
       <ItemAction icon={<Pencil size={16} />} label={`Edit ${item.name}`} onClick={() => editor.edit(item)} title="Edit" />
       <ItemAction icon={<Trash2 size={16} />} label={`Delete ${item.name}`} onClick={() => poll.deleteCategory(item.id)} title="Delete" />
@@ -663,8 +749,8 @@ function CategoryActions({ editor, item, poll }) {
   );
 }
 
-function ItemAction({ disabled = false, icon, label, onClick, title }) {
-  return <button aria-label={label} disabled={disabled} onClick={onClick} title={title} type="button">{icon}</button>;
+function ItemAction({ active = false, disabled = false, icon, label, onClick, title }) {
+  return <button aria-label={label} className={active ? "active" : ""} disabled={disabled} onClick={onClick} title={title} type="button">{icon}</button>;
 }
 
 function ResultsModal({ poll }) {
@@ -1075,6 +1161,11 @@ function sameIds(left, right) {
   return left.length === right.length && left.every((id) => right.includes(id));
 }
 
+function cancelVoting(setState) {
+  clearSharedPollRoute();
+  showCategoryStart(setState);
+}
+
 function showCategoryStart(setState) {
   setState((data) => ({
     ...data,
@@ -1085,6 +1176,13 @@ function showCategoryStart(setState) {
     submitBusy: false,
     tierBuckets: emptyTierBuckets(),
   }));
+}
+
+function clearSharedPollRoute() {
+  if (!linkedCategoryId()) return;
+  const url = new URL(window.location.href);
+  url.hash = "";
+  window.history.replaceState(null, "", url.toString());
 }
 
 function setDrawerOpen(drawerOpen, setState) {
