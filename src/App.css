@@ -786,10 +786,49 @@
   padding: 6px 10px;
 }
 
+.tier-result-group .result-row {
+  grid-template-columns: minmax(96px, 130px) 54px minmax(0, 1fr) 118px;
+}
+
+.result-row.tied-result {
+  border-color: rgba(255, 222, 77, 0.5);
+}
+
 .result-row > strong {
   color: var(--gold);
   font-size: 1.24rem;
   text-align: center;
+}
+
+.tier-result-label {
+  display: grid;
+  gap: 5px;
+  justify-items: center;
+  min-width: 0;
+  text-align: center;
+}
+
+.tier-result-label strong {
+  color: var(--gold);
+  font-size: 1.02rem;
+  line-height: 1;
+  overflow-wrap: anywhere;
+}
+
+.tier-result-label span {
+  align-items: center;
+  color: var(--gold);
+  display: inline-flex;
+  gap: 4px;
+}
+
+.tier-result-label em {
+  color: var(--text-muted);
+  font-family: 'Segoe UI', sans-serif;
+  font-size: 0.64rem;
+  font-style: normal;
+  font-weight: 900;
+  text-transform: uppercase;
 }
 
 .result-row .portrait {

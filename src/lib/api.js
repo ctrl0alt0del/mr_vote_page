@@ -54,10 +54,12 @@ export async function submitTierBallot(categoryId, tierItems, voterKey) {
 }
 
 export async function fetchCategoryRankings(categoryId) {
-  const query = supabase.from('category_rankings').select(rankingColumns()).eq('category_id', categoryId).order('rank').order('name')
-  const { data, error } = await query
+  const [{ data, error }, tieWinners] = await Promise.all([
+    rankingQuery(categoryId),
+    fetchTierWinningTiers(categoryId),
+  ])
   throwIfError(error)
-  return (data ?? []).map(normalizeRanking)
+  return expandTierTies((data ?? []).map(normalizeRanking), tieWinners)
 }
 
 async function fetchCategoryHeroLinks() {
@@ -100,6 +102,10 @@ function rankingColumns() {
   return 'category_id,category_name,hero_id,name,role,image_url,ballots,points,average_rank,rank,poll_type,tier_key,tier_label,tier_votes,tier_order'
 }
 
+function tierWinnerColumns() {
+  return 'category_id,hero_id,tier_key,tier_label,tier_order,tier_votes,ballots,points,tier_is_tied'
+}
+
 function normalizeCategory(row) {
   return { description: row.description ?? '', heroIds: [], id: row.id, name: row.name, pollType: row.poll_type ?? 'ranked', sortOrder: row.sort_order ?? 0, tierConfig: normalizeTierConfig(row.tier_config), tierOrientation: row.tier_orientation ?? 'vertical' }
 }
@@ -109,7 +115,65 @@ function normalizeHero(row) {
 }
 
 function normalizeRanking(row) {
-  return { averageRank: row.average_rank, ballots: row.ballots, id: row.hero_id, imageUrl: row.image_url, name: row.name, points: Number(row.points ?? 0), pollType: row.poll_type ?? 'ranked', rank: row.rank, role: row.role, tierKey: row.tier_key, tierLabel: row.tier_label, tierOrder: row.tier_order, tierVotes: row.tier_votes ?? 0 }
+  return { averageRank: row.average_rank, ballots: row.ballots, id: row.hero_id, imageUrl: row.image_url, name: row.name, points: Number(row.points ?? 0), pollType: row.poll_type ?? 'ranked', rank: row.rank, role: row.role, tierIsTied: Boolean(row.tier_is_tied), tierKey: row.tier_key, tierLabel: row.tier_label, tierOrder: row.tier_order, tierVotes: row.tier_votes ?? 0 }
+}
+
+async function rankingQuery(categoryId) {
+  return supabase.from('category_rankings').select(rankingColumns()).eq('category_id', categoryId).order('rank').order('name')
+}
+
+async function fetchTierWinningTiers(categoryId) {
+  const query = supabase.from('category_tier_winning_tiers').select(tierWinnerColumns()).eq('category_id', categoryId).order('tier_order').order('hero_id')
+  const { data, error } = await query
+  if (isMissingTieView(error)) return []
+  throwIfError(error)
+  return (data ?? []).map(normalizeTierWinner)
+}
+
+function normalizeTierWinner(row) {
+  return {
+    ballots: row.ballots,
+    heroId: row.hero_id,
+    points: Number(row.points ?? 0),
+    tierIsTied: Boolean(row.tier_is_tied),
+    tierKey: row.tier_key,
+    tierLabel: row.tier_label,
+    tierOrder: row.tier_order,
+    tierVotes: row.tier_votes ?? 0,
+  }
+}
+
+function expandTierTies(rankings, winners) {
+  if (!winners.length) return rankings
+  const winnersByHero = groupTierWinners(winners)
+  return rankings.flatMap((hero) => expandedTierRows(hero, winnersByHero.get(hero.id)))
+}
+
+function expandedTierRows(hero, winners) {
+  if (hero.pollType !== 'tier' || !winners?.length) return [hero]
+  return winners.map((winner) => ({
+    ...hero,
+    ballots: winner.ballots,
+    points: winner.points,
+    tierIsTied: winner.tierIsTied,
+    tierKey: winner.tierKey,
+    tierLabel: winner.tierLabel,
+    tierOrder: winner.tierOrder,
+    tierVotes: winner.tierVotes,
+  }))
+}
+
+function groupTierWinners(winners) {
+  return winners.reduce((groups, winner) => {
+    const group = groups.get(winner.heroId) ?? []
+    group.push(winner)
+    groups.set(winner.heroId, group)
+    return groups
+  }, new Map())
+}
+
+function isMissingTieView(error) {
+  return Boolean(error) && /category_tier_winning_tiers|schema cache/i.test(error.message ?? '')
 }
 
 function tierBallotArgs(categoryId, tierItems, voterKey) {

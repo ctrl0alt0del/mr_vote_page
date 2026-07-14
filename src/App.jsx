@@ -19,12 +19,12 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
+  AlertTriangle,
   ArrowLeft,
   BarChart3,
   ChevronDown,
   ChevronUp,
   GripVertical,
-  Maximize2,
   Pencil,
   Plus,
   Save,
@@ -88,7 +88,6 @@ function buildActions(state, setState) {
     openResults: (category) => loadResults(category, setState), refresh: () => loadSetup(setState),
     reorderHero: (activeId, overId) => reorderRankedHero(activeId, overId, setState),
     shareCategory: (category) => copyCategoryLink(category, setState),
-    showResultModal: () => setResultView("modal", setState), showResultPage: () => setResultView("page", setState),
     startCategory: (category) => startCategoryPoll(category, state.heroes, setState),
     submitRanking: () => saveRanking(state, setState), submitTier: () => saveTier(state, setState),
     updateCategory: (id, draft) => saveCategoryEdit(id, draft, setState),
@@ -100,7 +99,7 @@ function makeInitialState() {
     activeCategory: null, categories: [], categoryBusy: false, completedCategory: null,
     copiedCategoryId: "",
     drawerOpen: false, error: "", heroes: [], rankingIds: [], resultCategory: null,
-    resultError: "", resultRankings: [], resultStatus: "idle", resultView: "modal",
+    resultError: "", resultRankings: [], resultStatus: "idle",
     status: hasSupabaseConfig ? "loading" : "setup", tierBuckets: emptyTierBuckets(),
     submitBusy: false,
   };
@@ -250,7 +249,7 @@ function setRankingDone(category, setState) {
 }
 
 async function loadResults(category, setState) {
-  setState((data) => ({ ...data, resultCategory: category, resultError: "", resultRankings: [], resultStatus: "loading", resultView: "modal" }));
+  setState((data) => ({ ...data, drawerOpen: false, resultCategory: category, resultError: "", resultRankings: [], resultStatus: "loading" }));
   try {
     setResultsLoaded(category, await fetchCategoryRankings(category.id), setState);
   } catch (error) {
@@ -320,8 +319,7 @@ function SetupNotice() {
 
 function PollArea({ poll }) {
   if (poll.status === "setup") return <EmptyState />;
-  if (poll.resultCategory && poll.resultView === "page")
-    return <ResultsPage poll={poll} />;
+  if (poll.resultCategory) return <ResultsPage poll={poll} />;
   return (
     <>
       <ManageButton poll={poll} />
@@ -329,7 +327,6 @@ function PollArea({ poll }) {
         <VotingStage poll={poll} />
       </section>
       {poll.drawerOpen && <CategoryDrawer poll={poll} />}
-      {poll.resultCategory && poll.resultView === "modal" && <ResultsModal poll={poll} />}
     </>
   );
 }
@@ -753,15 +750,6 @@ function ItemAction({ active = false, disabled = false, icon, label, onClick, ti
   return <button aria-label={label} className={active ? "active" : ""} disabled={disabled} onClick={onClick} title={title} type="button">{icon}</button>;
 }
 
-function ResultsModal({ poll }) {
-  return (
-    <div className="modal-layer">
-      <button className="modal-backdrop" aria-label="Close results" onClick={poll.closeResults} type="button" />
-      <section aria-modal="true" className="results-modal" role="dialog"><ResultsHeader poll={poll} /><ResultsBody poll={poll} /></section>
-    </div>
-  );
-}
-
 function ResultsPage({ poll }) {
   return <section className="results-page"><ResultsHeader fullPage poll={poll} /><ResultsBody poll={poll} /></section>;
 }
@@ -776,8 +764,7 @@ function ResultsHeader({ poll }) {
 }
 
 function ResultsHeaderActions({ poll }) {
-  if (poll.resultView === "page") return <div className="results-actions"><button aria-label="Back to modal" onClick={poll.showResultModal} type="button"><ArrowLeft size={20} /></button><CloseResultsButton poll={poll} /></div>;
-  return <div className="results-actions"><button aria-label="Open full page results" onClick={poll.showResultPage} type="button"><Maximize2 size={18} /></button><CloseResultsButton poll={poll} /></div>;
+  return <div className="results-actions"><CloseResultsButton poll={poll} /></div>;
 }
 
 function CloseResultsButton({ poll }) {
@@ -799,18 +786,37 @@ function hasSubmittedVotes(rankings) {
   return rankings.some((hero) => hero.ballots > 0);
 }
 
+function tierGroupHeroes(rankings, tier) {
+  return rankings
+    .filter((hero) => hero.tierKey === tier.key)
+    .sort(compareTierResults);
+}
+
+function compareTierResults(left, right) {
+  return (
+    right.points - left.points ||
+    right.tierVotes - left.tierVotes ||
+    right.ballots - left.ballots ||
+    left.name.localeCompare(right.name)
+  );
+}
+
 function TierResultsList({ poll }) {
   return <div className="tier-results">{poll.resultCategory.tierConfig.map((tier) => <TierResultGroup key={tier.key} rankings={poll.resultRankings} tier={tier} />)}</div>;
 }
 
 function TierResultGroup({ rankings, tier }) {
-  const heroes = rankings.filter((hero) => hero.tierKey === tier.key);
+  const heroes = tierGroupHeroes(rankings, tier);
   if (!heroes.length) return null;
-  return <section className="tier-result-group"><TierBucketLabel tier={tier} /><div className="results-list">{heroes.map((hero) => <TierResultRow hero={hero} key={hero.id} />)}</div></section>;
+  return <section className="tier-result-group"><TierBucketLabel tier={tier} /><div className="results-list">{heroes.map((hero) => <TierResultRow hero={hero} key={`${hero.id}-${hero.tierKey}`} />)}</div></section>;
 }
 
 function TierResultRow({ hero }) {
-  return <article className={`result-row ${roleClass(hero.role)}`}><strong>{hero.tierLabel}</strong><HeroPortrait hero={hero} /><HeroCopy hero={hero} /><TierResultScore hero={hero} /></article>;
+  return <article className={`result-row ${roleClass(hero.role)}${hero.tierIsTied ? " tied-result" : ""}`}><TierResultLabel hero={hero} /><HeroPortrait hero={hero} /><HeroCopy hero={hero} /><TierResultScore hero={hero} /></article>;
+}
+
+function TierResultLabel({ hero }) {
+  return <div className="tier-result-label"><strong>{hero.tierLabel}</strong>{hero.tierIsTied && <span title="This hero has multiple winning tiers"><AlertTriangle size={15} /><em>Tie</em></span>}</div>;
 }
 
 function TierResultScore({ hero }) {
@@ -1189,10 +1195,6 @@ function setDrawerOpen(drawerOpen, setState) {
   setState((data) => ({ ...data, drawerOpen }));
 }
 
-function setResultView(resultView, setState) {
-  setState((data) => ({ ...data, resultView }));
-}
-
 function closeResults(setState) {
   setState((data) => ({
     ...data,
@@ -1200,7 +1202,6 @@ function closeResults(setState) {
     resultError: "",
     resultRankings: [],
     resultStatus: "idle",
-    resultView: "modal",
   }));
 }
 
